@@ -1,5 +1,6 @@
 import os
 import requests
+import threading
 from slack_bolt import App
 from slack_bolt.adapter.socket_mode import SocketModeHandler
 
@@ -14,13 +15,9 @@ app = App(token=SLACK_BOT_TOKEN)
 # メンションされたら反応する設定
 @app.event("app_mention")
 def handle_mentions(event, say):
-    # ユーザーのメッセージを取得（メンション部分 <@U...> を削除）
     text = event["text"]
     user_id = event["user"]
     
-    # 処理中であることを伝える（オプション）
-    # say(f"考え中...") 
-
     try:
         # Difyに質問を投げる
         response = requests.post(
@@ -37,17 +34,24 @@ def handle_mentions(event, say):
             }
         )
         
-        # Difyからの返事を取り出す
         if response.status_code == 200:
             result = response.json()
             answer = result.get("answer", "（答えが見つかりませんでした）")
             say(answer)
         else:
-            say(f"エラーが発生しました: {response.text}")
+            say(f"Difyエラー: {response.text}")
             
     except Exception as e:
         say(f"システムエラー: {str(e)}")
 
-# ボットを起動
+# --- Renderのポートエラーを回避するためのダミーサーバー設定 ---
+def run_dummy_server():
+    # Renderが期待する10000番ポートで簡易サーバーを起動
+    os.system("python3 -m http.server 10000")
+
 if __name__ == "__main__":
+    # ダミーサーバーを別スレッドで起動
+    threading.Thread(target=run_dummy_server, daemon=True).start()
+    
+    # Slackボットを起動
     SocketModeHandler(app, SLACK_APP_TOKEN).start()
